@@ -1,18 +1,18 @@
-pub const UNIT: Value = Value { as_unit: () };
+use std::{mem::size_of, ptr::null};
 
-#[macro_export]
-macro_rules! proc {
-    ($(:$insn: expr)*) => {
-        {
-            use $crate::rt::Insn::*;
-            $crate::rt::Proc {
-                code: vec![
-                    $($insn),*
-                ],
-            }
-        }
-    };
-}
+use crate::{
+    opcodes::{
+        AddF64, AddI64, Alloc, Call, CallDynamic, DivF64, DivI64, Instruction, Jump, LoadConst,
+        Move, MulF64, MulI64, PrintF64, PrintI64, PrintProc, RemF64, RemI64, SubF64, SubI64,
+        ADD_F64, ADD_I64, ALLOC, CALL, CALL_DYNAMIC, DIV_F64, DIV_I64, HALT, JUMP, LOAD_CONST,
+        MOVE, MUL_F64, MUL_I64, PRINT_F64, PRINT_I64, PRINT_PROC, REM_F64, REM_I64, RETURN,
+        SUB_F64, SUB_I64,
+    },
+    proc::Proc,
+    stack::Stack,
+    util::Read,
+    value,
+};
 
 #[macro_export]
 macro_rules! make_runtime {
@@ -26,29 +26,31 @@ macro_rules! make_runtime {
         )*
         $({
             #[allow(unused_imports)]
-            use $crate::rt::_proc::*;
-            runtime.push_constant(std::convert::Into::into($crate::rt::Proc {
-                code: vec![
-                    $($insn),*
-                ],
-            }));
+            use $crate::opcodes::_asm::*;
+            let mut code = Vec::new();
+            $(
+                $crate::opcodes::Instruction::write(&$insn, &mut code);
+            )*
+            runtime.push_constant(::std::convert::Into::into($crate::proc::Proc::new(code)));
         })*
         runtime
     }};
 }
 
+#[repr(C)]
 pub struct Runtime {
+    /// Instruction pointer
+    pub ip: *const u8,
+    pub stack: Stack,
     pub constants: Vec<Constant>,
-    pub frames: Vec<StackFrame>,
-    pub stack: Vec<Value>,
 }
 
 impl Runtime {
     pub fn new() -> Self {
         Self {
+            ip: null(),
             constants: Vec::new(),
-            frames: Vec::new(),
-            stack: Vec::new(),
+            stack: Stack::new(4096),
         }
     }
 
@@ -56,233 +58,173 @@ impl Runtime {
         self.constants.push(constant);
     }
 
-    pub fn push_call_frame(&mut self, index: u32) {
+    pub fn call(&mut self, index: u32) {
         let Constant::Proc(proc) = &self.constants[index as usize] else {
             panic!("Unable to call constants[{index}]");
         };
-        self.frames.push(StackFrame {
-            code: proc.code.as_slice(),
-            offset: 0,
-        });
+        self.push_call_frame(&**proc);
     }
 
-    #[inline]
-    pub fn pop(&mut self) -> Value {
-        self.stack.pop().unwrap()
-    }
-
-    #[inline]
-    pub fn pop2(&mut self) -> (Value, Value) {
-        (self.pop(), self.pop())
-    }
-
-    #[inline]
-    pub fn pop_i64(&mut self) -> i64 {
-        unsafe { self.pop().as_i64 }
-    }
-
-    #[inline]
-    pub fn pop2_i64(&mut self) -> (i64, i64) {
-        (self.pop_i64(), self.pop_i64())
-    }
-
-    #[inline]
-    pub fn pop_f64(&mut self) -> f64 {
-        unsafe { self.pop().as_f64 }
-    }
-
-    #[inline]
-    pub fn pop2_f64(&mut self) -> (f64, f64) {
-        (self.pop_f64(), self.pop_f64())
-    }
-
-    #[inline]
-    pub fn pop_proc(&mut self) -> *const Proc {
-        unsafe { self.pop().as_proc }
-    }
-
-    #[inline]
-    pub fn push(&mut self, value: Value) {
-        self.stack.push(value);
-    }
-
-    #[inline]
-    pub fn push_i64(&mut self, value: i64) {
-        self.stack.push(Value { as_i64: value });
-    }
-
-    #[inline]
-    pub fn push_f64(&mut self, value: f64) {
-        self.stack.push(Value { as_f64: value });
-    }
-
-    pub fn stack_alloc(&mut self, capacity: u32) {
-        self.stack.reserve(capacity as usize);
-        for _ in 0..capacity {
-            self.push(UNIT);
-        }
-    }
-
-    #[inline]
-    pub fn copy(&mut self) {
-        let top = *self.stack.last().unwrap();
-        self.push(top);
-    }
-
-    #[inline]
-    pub fn swap(&mut self) {
-        let (top, bottom) = self.pop2();
-        self.push(top);
-        self.push(bottom);
-    }
-
-    #[inline]
-    pub fn load(&mut self, offset: u32) {
-        let index = self.stack.len() - offset as usize - 1;
-        self.push(self.stack[index]);
-    }
-
-    #[inline]
-    pub fn store(&mut self, offset: u32) {
-        let value = self.pop();
-        let index = self.stack.len() - offset as usize - 1;
-        self.stack[index] = value;
-    }
-
-    pub fn load_const(&mut self, index: u32) {
+    pub fn load_const(&mut self, dst: i16, index: u32) {
         let constant = &self.constants[index as usize];
-        self.push(match constant {
-            Constant::I64(value) => Value { as_i64: *value },
-            Constant::F64(value) => Value { as_f64: *value },
-            Constant::Proc(value) => Value {
-                as_proc: value.as_ref(),
+        self.stack.store(
+            dst,
+            match constant {
+                Constant::I64(value) => value!(@i64 *value),
+                Constant::F64(value) => value!(@f64 *value),
+                Constant::Proc(value) => value!(@proc value.as_ref()),
             },
-        });
+        );
     }
 
-    pub fn call(&mut self) {
-        let proc = self.pop_proc();
-        self.frames.push(StackFrame {
-            code: unsafe { (*proc).code.as_slice() },
-            offset: 0,
-        });
-    }
-
-    pub fn call_immediate(&mut self, proc: *const Proc) {
-        self.frames.push(StackFrame {
-            code: unsafe { (*proc).code.as_slice() },
-            offset: 0,
-        });
+    /// Pushes a call frame and sets the instruction pointer
+    pub fn push_call_frame(&mut self, proc: *const Proc) {
+        unsafe {
+            self.stack.push_frame(self.ip);
+            self.ip = (*proc).code.as_ptr();
+        }
     }
 
     #[inline]
     pub fn jump(&mut self, offset: i32) {
-        let frame = self.frames.last_mut().unwrap();
-        frame.offset = frame.offset.wrapping_add_signed(offset as isize);
+        unsafe {
+            self.ip = self.ip.offset(offset as isize);
+        }
     }
 
-    #[inline]
-    pub fn inc_pc(&mut self) {
-        self.frames.last_mut().unwrap().offset += 1;
-    }
-
-    pub fn evaluate(&mut self, insn: Insn) {
-        match insn {
-            Insn::StackAlloc(cap) => self.stack_alloc(cap),
-            Insn::Copy => self.copy(),
-            Insn::Swap => self.swap(),
-            Insn::Load(offset) => self.load(offset),
-            Insn::Store(offset) => self.store(offset),
-            Insn::LoadConst(index) => self.load_const(index),
-            Insn::Call => {
-                self.inc_pc();
-                self.call();
-                return;
-            }
-            Insn::CallImmediate(index) => {
-                self.inc_pc();
-                let Constant::Proc(proc) = &self.constants[index as usize] else {
-                    panic!();
-                };
-                self.call_immediate(proc.as_ref());
-                return;
-            }
-            Insn::Jump(offset) => {
-                self.jump(offset);
-                return;
-            }
-            Insn::AddI64 => {
-                let (top, bottom) = self.pop2_i64();
-                self.push_i64(bottom + top);
-            }
-            Insn::SubI64 => {
-                let (top, bottom) = self.pop2_i64();
-                self.push_i64(bottom - top);
-            }
-            Insn::MulI64 => {
-                let (top, bottom) = self.pop2_i64();
-                self.push_i64(bottom * top);
-            }
-            Insn::DivI64 => {
-                let (top, bottom) = self.pop2_i64();
-                self.push_i64(bottom / top);
-            }
-            Insn::RemI64 => {
-                let (top, bottom) = self.pop2_i64();
-                self.push_i64(bottom % top);
-            }
-            Insn::AddF64 => {
-                let (top, bottom) = self.pop2_f64();
-                self.push_f64(bottom + top);
-            }
-            Insn::SubF64 => {
-                let (top, bottom) = self.pop2_f64();
-                self.push_f64(bottom - top);
-            }
-            Insn::MulF64 => {
-                let (top, bottom) = self.pop2_f64();
-                self.push_f64(bottom * top);
-            }
-            Insn::DivF64 => {
-                let (top, bottom) = self.pop2_f64();
-                self.push_f64(bottom / top);
-            }
-            Insn::RemF64 => {
-                let (top, bottom) = self.pop2_f64();
-                self.push_f64(bottom % top);
-            }
-            Insn::PrintI64 => {
-                println!("{}", self.pop_i64());
-            }
-            Insn::PrintF64 => {
-                println!("{}", self.pop_f64());
-            }
-            Insn::PrintProc => {
-                println!("<proc:{:?}>", self.pop_proc());
+    pub fn evaluate(&mut self) {
+        unsafe {
+            let opc = self.read::<u8>();
+            match opc {
+                ALLOC => {
+                    let insn = Alloc::read(self);
+                    self.stack.alloc(insn.size as usize);
+                }
+                MOVE => {
+                    let insn = Move::read(self);
+                    let value = self.stack.load(insn.src);
+                    self.stack.store(insn.dst, value);
+                }
+                LOAD_CONST => {
+                    let insn = LoadConst::read(self);
+                    self.load_const(insn.dst, insn.index);
+                }
+                CALL => {
+                    let insn = Call::read(self);
+                    self.call(insn.index);
+                }
+                CALL_DYNAMIC => {
+                    let insn = CallDynamic::read(self);
+                    let proc = self.stack.load(insn.src).as_proc;
+                    self.push_call_frame(proc);
+                }
+                JUMP => {
+                    let insn = Jump::read(self);
+                    self.jump(insn.offset);
+                }
+                RETURN => {
+                    let ra = self.stack.return_call();
+                    self.ip = ra;
+                }
+                ADD_I64 => {
+                    let insn = AddI64::read(self);
+                    let left = self.stack.load(insn.left).as_i64;
+                    let right = self.stack.load(insn.right).as_i64;
+                    self.stack.store(insn.dst, value!(@i64 left + right));
+                }
+                SUB_I64 => {
+                    let insn = SubI64::read(self);
+                    let left = self.stack.load(insn.left).as_i64;
+                    let right = self.stack.load(insn.right).as_i64;
+                    self.stack.store(insn.dst, value!(@i64 left - right));
+                }
+                MUL_I64 => {
+                    let insn = MulI64::read(self);
+                    let left = self.stack.load(insn.left).as_i64;
+                    let right = self.stack.load(insn.right).as_i64;
+                    self.stack.store(insn.dst, value!(@i64 left * right));
+                }
+                DIV_I64 => {
+                    let insn = DivI64::read(self);
+                    let left = self.stack.load(insn.left).as_i64;
+                    let right = self.stack.load(insn.right).as_i64;
+                    self.stack.store(insn.dst, value!(@i64 left / right));
+                }
+                REM_I64 => {
+                    let insn = RemI64::read(self);
+                    let left = self.stack.load(insn.left).as_i64;
+                    let right = self.stack.load(insn.right).as_i64;
+                    self.stack.store(insn.dst, value!(@i64 left % right));
+                }
+                ADD_F64 => {
+                    let insn = AddF64::read(self);
+                    let left = self.stack.load(insn.left).as_f64;
+                    let right = self.stack.load(insn.right).as_f64;
+                    self.stack.store(insn.dst, value!(@f64 left + right));
+                }
+                SUB_F64 => {
+                    let insn = SubF64::read(self);
+                    let left = self.stack.load(insn.left).as_f64;
+                    let right = self.stack.load(insn.right).as_f64;
+                    self.stack.store(insn.dst, value!(@f64 left - right));
+                }
+                MUL_F64 => {
+                    let insn = MulF64::read(self);
+                    let left = self.stack.load(insn.left).as_f64;
+                    let right = self.stack.load(insn.right).as_f64;
+                    self.stack.store(insn.dst, value!(@f64 left * right));
+                }
+                DIV_F64 => {
+                    let insn = DivF64::read(self);
+                    let left = self.stack.load(insn.left).as_f64;
+                    let right = self.stack.load(insn.right).as_f64;
+                    self.stack.store(insn.dst, value!(@f64 left / right));
+                }
+                REM_F64 => {
+                    let insn = RemF64::read(self);
+                    let left = self.stack.load(insn.left).as_f64;
+                    let right = self.stack.load(insn.right).as_f64;
+                    self.stack.store(insn.dst, value!(@f64 left % right));
+                }
+                PRINT_I64 => {
+                    let insn = PrintI64::read(self);
+                    let value = self.stack.load(insn.src).as_i64;
+                    println!("{value}");
+                }
+                PRINT_F64 => {
+                    let insn = PrintF64::read(self);
+                    let value = self.stack.load(insn.src).as_f64;
+                    println!("{value}");
+                }
+                PRINT_PROC => {
+                    let insn = PrintProc::read(self);
+                    let value = self.stack.load(insn.src).as_proc;
+                    println!("<proc:{value:?}>");
+                }
+                HALT => {
+                    self.ip = null();
+                }
+                _ => unimplemented!("opcode::0x{opc:02x}"),
             }
         }
-        self.inc_pc();
     }
 
     pub fn run(&mut self) {
-        while let Some(frame) = self.frames.last_mut() {
-            // Return from procs
-            if frame.offset >= unsafe { (*frame.code).len() } {
-                self.frames.pop().unwrap();
-                continue;
-            }
-            let insn = unsafe { (*frame.code)[frame.offset] };
-            self.evaluate(insn);
+        while !self.ip.is_null() {
+            self.evaluate();
         }
     }
 }
 
-#[derive(Clone, Copy)]
-pub union Value {
-    pub as_unit: (),
-    pub as_i64: i64,
-    pub as_f64: f64,
-    pub as_proc: *const Proc,
+impl Read for Runtime {
+    #[inline]
+    fn read<T: Copy>(&mut self) -> T {
+        unsafe {
+            let value = (self.ip as *const T).read_unaligned();
+            self.ip = self.ip.add(size_of::<T>());
+            value
+        }
+    }
 }
 
 pub enum Constant {
@@ -307,71 +249,4 @@ impl From<Proc> for Constant {
     fn from(value: Proc) -> Self {
         Self::Proc(Box::new(value))
     }
-}
-
-pub struct Proc {
-    pub code: Vec<Insn>,
-}
-
-pub struct StackFrame {
-    pub code: *const [Insn],
-    pub offset: usize,
-}
-
-#[derive(Clone, Copy)]
-#[repr(u8)]
-pub enum Insn {
-    // Memory
-    StackAlloc(u32),
-    Copy,
-    Swap,
-    Load(u32),
-    Store(u32),
-    LoadConst(u32),
-    // Jumps
-    Call,
-    CallImmediate(u32),
-    Jump(i32),
-    // Arithmetic
-    AddI64,
-    SubI64,
-    MulI64,
-    DivI64,
-    RemI64,
-    AddF64,
-    SubF64,
-    MulF64,
-    DivF64,
-    RemF64,
-    // Debug
-    PrintI64,
-    PrintF64,
-    PrintProc,
-}
-
-#[rustfmt::skip]
-#[allow(unused_imports)]
-pub(super) mod _proc {
-    pub use super::Insn::StackAlloc as stack_alloc;
-    pub use super::Insn::Copy as copy;
-    pub use super::Insn::Swap as swap;
-    pub use super::Insn::Load as load;
-    pub use super::Insn::Store as store;
-    pub use super::Insn::LoadConst as load_const;
-    pub use super::Insn::Call as call;
-    pub use super::Insn::CallImmediate as call_imm;
-    pub use super::Insn::Jump as jump;
-    pub use super::Insn::AddI64 as addi;
-    pub use super::Insn::SubI64 as subi;
-    pub use super::Insn::MulI64 as muli;
-    pub use super::Insn::DivI64 as divi;
-    pub use super::Insn::RemI64 as remi;
-    pub use super::Insn::AddF64 as addf;
-    pub use super::Insn::SubF64 as subf;
-    pub use super::Insn::MulF64 as mulf;
-    pub use super::Insn::DivF64 as divf;
-    pub use super::Insn::RemF64 as remf;
-    pub use super::Insn::PrintI64 as print_i64;
-    pub use super::Insn::PrintF64 as print_f64;
-    pub use super::Insn::PrintProc as print_proc;
 }

@@ -1,6 +1,11 @@
-//pub mod asm;
-//pub mod parser;
+#![feature(new_uninit)]
+
+pub mod opcodes;
+pub mod proc;
 pub mod rt;
+pub mod stack;
+pub mod util;
+pub mod value;
 
 fn main() {
     let mut rt = make_runtime! {
@@ -10,16 +15,19 @@ fn main() {
         ];
         let procs = [
             main = {
-                load_const(0);
-                load_const(1);
-                call_imm(3);
-                print_i64;
+                alloc(2);
+                ldc(0, 0);
+                ldc(1, 1);
+                call(3);
+                print_i64(1);
+                hlt();
             },
             mul = {
-                muli;
+                muli(-1, -1, -2);
+                ret();
             }
         ];
     };
-    rt.push_call_frame(2);
+    rt.call(2);
     rt.run();
 }
