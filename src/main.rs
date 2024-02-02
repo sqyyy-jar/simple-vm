@@ -18,11 +18,10 @@ fn main() {
         ];
         let procs = [
             .{ // [5]: main()
-                alloc(2);
-                ldc(0, 0);
-                ldc(1, 1);
-                call(3);
-                print_i64(1);
+                alloc(1);
+                movv(0, 5);
+                call(7);
+                print_i64(0);
                 hlt();
             },
             .{ // [6]: mul()
@@ -31,11 +30,18 @@ fn main() {
             },
             .{ // [7]: factorial(n)
                 alloc(2);
-                bz(-1, todo!());
+                bnz(-1, 1 + 2 + 8 + 1);                 // if (n == 0)
+                movv(-1, 1);                            // return 1
+                ret();
+                movv(0, 1);                             // %0 = 1
+                mov(1, -1);                             // %1 = n
+                subi(1, 1, 0);                          // %1 = %1 - %0
+                call(7);                                // %1 = factorial(%1)
+                muli(-1, -1, 1);                        // return n * %1
                 ret();
             }
         ];
     };
-    rt.call(2);
+    rt.call(5);
     rt.run();
 }

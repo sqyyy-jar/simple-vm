@@ -9,6 +9,7 @@ macro_rules! opcodes {
             // Memory
             (alloc,        alloc,      { size: u16 })
             (r#move,       mov,        { dst: i16, src: i16 })
+            (move_value,   movv,       { dst: i16, value: i64 })
             (load_const,   ldc,        { dst: i16, index: u32 })
             // Jumps
             (call,         call,       { index: u32 })

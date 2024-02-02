@@ -28,6 +28,14 @@ pub trait Write {
     fn write_u32(&mut self, num: u32) {
         self.write(&num.to_ne_bytes());
     }
+
+    fn write_i64(&mut self, num: i64) {
+        self.write(&num.to_ne_bytes());
+    }
+
+    fn write_u64(&mut self, num: u64) {
+        self.write(&num.to_ne_bytes());
+    }
 }
 
 impl Write for Vec<u8> {

@@ -2,13 +2,12 @@ use std::{mem::size_of, ptr::null};
 
 use crate::{
     opcodes::{
-        AddF64, AddI64, Alloc, Branch, BranchEq, BranchG, BranchGe, BranchGez, BranchGz, BranchL,
-        BranchLe, BranchLez, BranchLz, BranchNe, BranchNz, BranchZ, Call, CallDynamic, DivF64,
-        DivI64, Instruction, LoadConst, Move, MulF64, MulI64, PrintF64, PrintI64, PrintProc,
-        RemF64, RemI64, SubF64, SubI64, ADD_F64, ADD_I64, ALLOC, BRANCH, BRANCH_EQ, BRANCH_G,
-        BRANCH_GE, BRANCH_L, BRANCH_LE, BRANCH_NE, BRANCH_NZ, BRANCH_Z, CALL, CALL_DYNAMIC,
-        DIV_F64, DIV_I64, HALT, LOAD_CONST, MOVE, MUL_F64, MUL_I64, PRINT_F64, PRINT_I64,
-        PRINT_PROC, REM_F64, REM_I64, RETURN, SUB_F64, SUB_I64,
+        AddF64, AddI64, Alloc, Branch, BranchGez, BranchGz, BranchLez, BranchLz, BranchNz, BranchZ,
+        Call, CallDynamic, DivF64, DivI64, Instruction, LoadConst, Move, MoveValue, MulF64, MulI64,
+        PrintF64, PrintI64, PrintProc, RemF64, RemI64, SubF64, SubI64, ADD_F64, ADD_I64, ALLOC,
+        BRANCH, BRANCH_GEZ, BRANCH_GZ, BRANCH_LEZ, BRANCH_LZ, BRANCH_NZ, BRANCH_Z, CALL,
+        CALL_DYNAMIC, DIV_F64, DIV_I64, HALT, LOAD_CONST, MOVE, MOVE_VALUE, MUL_F64, MUL_I64,
+        PRINT_F64, PRINT_I64, PRINT_PROC, REM_F64, REM_I64, RETURN, SUB_F64, SUB_I64,
     },
     proc::Proc,
     stack::Stack,
@@ -107,6 +106,10 @@ impl Runtime {
                     let value = self.stack.load(insn.src);
                     self.stack.store(insn.dst, value);
                 }
+                MOVE_VALUE => {
+                    let insn = MoveValue::read(self);
+                    self.stack.store(insn.dst, value!(@i64 insn.value));
+                }
                 LOAD_CONST => {
                     let insn = LoadConst::read(self);
                     self.load_const(insn.dst, insn.index);
@@ -136,25 +139,25 @@ impl Runtime {
                         self.branch_rel(insn.offset);
                     }
                 }
-                BRANCH_L => {
+                BRANCH_LZ => {
                     let insn = BranchLz::read(self);
                     if self.stack.load(insn.src).as_i64 < 0 {
                         self.branch_rel(insn.offset);
                     }
                 }
-                BRANCH_LE => {
+                BRANCH_LEZ => {
                     let insn = BranchLez::read(self);
                     if self.stack.load(insn.src).as_i64 <= 0 {
                         self.branch_rel(insn.offset);
                     }
                 }
-                BRANCH_G => {
+                BRANCH_GZ => {
                     let insn = BranchGz::read(self);
                     if self.stack.load(insn.src).as_i64 > 0 {
                         self.branch_rel(insn.offset);
                     }
                 }
-                BRANCH_GE => {
+                BRANCH_GEZ => {
                     let insn = BranchGez::read(self);
                     if self.stack.load(insn.src).as_i64 >= 0 {
                         self.branch_rel(insn.offset);
