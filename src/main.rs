@@ -10,11 +10,14 @@ pub mod value;
 fn main() {
     let mut rt = make_runtime! {
         let constants = [
-            21i64,
-            2i64
+            0i64,
+            0i64,
+            0i64,
+            0i64,
+            0i64
         ];
         let procs = [
-            main = {
+            .{ // [5]: main()
                 alloc(2);
                 ldc(0, 0);
                 ldc(1, 1);
@@ -22,8 +25,13 @@ fn main() {
                 print_i64(1);
                 hlt();
             },
-            mul = {
+            .{ // [6]: mul()
                 muli(-1, -1, -2);
+                ret();
+            },
+            .{ // [7]: factorial(n)
+                alloc(2);
+                bz(-1, todo!());
                 ret();
             }
         ];

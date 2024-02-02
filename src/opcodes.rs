@@ -13,7 +13,13 @@ macro_rules! opcodes {
             // Jumps
             (call,         call,       { index: u32 })
             (call_dynamic, call_dyn,   { src: i16 })
-            (jump,         jmp,        { offset: i32})
+            (branch,       b,          { offset: i32 })
+            (branch_z,     bz,         { src: i16, offset: i32 })
+            (branch_nz,    bnz,        { src: i16, offset: i32 })
+            (branch_lz,    blz,        { src: i16, offset: i32 })
+            (branch_lez,   blez,       { src: i16, offset: i32 })
+            (branch_gz,    bgz,        { src: i16, offset: i32 })
+            (branch_gez,   bgez,       { src: i16, offset: i32 })
             (r#return,     ret,        {})
             // Arithmetic
             // i64

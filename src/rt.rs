@@ -2,11 +2,13 @@ use std::{mem::size_of, ptr::null};
 
 use crate::{
     opcodes::{
-        AddF64, AddI64, Alloc, Call, CallDynamic, DivF64, DivI64, Instruction, Jump, LoadConst,
-        Move, MulF64, MulI64, PrintF64, PrintI64, PrintProc, RemF64, RemI64, SubF64, SubI64,
-        ADD_F64, ADD_I64, ALLOC, CALL, CALL_DYNAMIC, DIV_F64, DIV_I64, HALT, JUMP, LOAD_CONST,
-        MOVE, MUL_F64, MUL_I64, PRINT_F64, PRINT_I64, PRINT_PROC, REM_F64, REM_I64, RETURN,
-        SUB_F64, SUB_I64,
+        AddF64, AddI64, Alloc, Branch, BranchEq, BranchG, BranchGe, BranchGez, BranchGz, BranchL,
+        BranchLe, BranchLez, BranchLz, BranchNe, BranchNz, BranchZ, Call, CallDynamic, DivF64,
+        DivI64, Instruction, LoadConst, Move, MulF64, MulI64, PrintF64, PrintI64, PrintProc,
+        RemF64, RemI64, SubF64, SubI64, ADD_F64, ADD_I64, ALLOC, BRANCH, BRANCH_EQ, BRANCH_G,
+        BRANCH_GE, BRANCH_L, BRANCH_LE, BRANCH_NE, BRANCH_NZ, BRANCH_Z, CALL, CALL_DYNAMIC,
+        DIV_F64, DIV_I64, HALT, LOAD_CONST, MOVE, MUL_F64, MUL_I64, PRINT_F64, PRINT_I64,
+        PRINT_PROC, REM_F64, REM_I64, RETURN, SUB_F64, SUB_I64,
     },
     proc::Proc,
     stack::Stack,
@@ -18,7 +20,7 @@ use crate::{
 macro_rules! make_runtime {
     (
         let constants = [ $($constant: expr),* ];
-        let procs = [ $($proc_name: ident = { $($insn: expr;)* }),* ];
+        let procs = [ $( .{ $($insn: expr;)* } ),* ];
     ) => {{
         let mut runtime = $crate::rt::Runtime::new();
         $(
@@ -86,7 +88,7 @@ impl Runtime {
     }
 
     #[inline]
-    pub fn jump(&mut self, offset: i32) {
+    pub fn branch_rel(&mut self, offset: i32) {
         unsafe {
             self.ip = self.ip.offset(offset as isize);
         }
@@ -118,9 +120,45 @@ impl Runtime {
                     let proc = self.stack.load(insn.src).as_proc;
                     self.push_call_frame(proc);
                 }
-                JUMP => {
-                    let insn = Jump::read(self);
-                    self.jump(insn.offset);
+                BRANCH => {
+                    let insn = Branch::read(self);
+                    self.branch_rel(insn.offset);
+                }
+                BRANCH_Z => {
+                    let insn = BranchZ::read(self);
+                    if self.stack.load(insn.src).as_i64 == 0 {
+                        self.branch_rel(insn.offset);
+                    }
+                }
+                BRANCH_NZ => {
+                    let insn = BranchNz::read(self);
+                    if self.stack.load(insn.src).as_i64 != 0 {
+                        self.branch_rel(insn.offset);
+                    }
+                }
+                BRANCH_L => {
+                    let insn = BranchLz::read(self);
+                    if self.stack.load(insn.src).as_i64 < 0 {
+                        self.branch_rel(insn.offset);
+                    }
+                }
+                BRANCH_LE => {
+                    let insn = BranchLez::read(self);
+                    if self.stack.load(insn.src).as_i64 <= 0 {
+                        self.branch_rel(insn.offset);
+                    }
+                }
+                BRANCH_G => {
+                    let insn = BranchGz::read(self);
+                    if self.stack.load(insn.src).as_i64 > 0 {
+                        self.branch_rel(insn.offset);
+                    }
+                }
+                BRANCH_GE => {
+                    let insn = BranchGez::read(self);
+                    if self.stack.load(insn.src).as_i64 >= 0 {
+                        self.branch_rel(insn.offset);
+                    }
                 }
                 RETURN => {
                     let ra = self.stack.return_call();
