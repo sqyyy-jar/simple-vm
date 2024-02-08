@@ -11,6 +11,7 @@ macro_rules! opcodes {
             (r#move,       mov,        { dst: i16, src: i16 })
             (move_value,   movv,       { dst: i16, value: i64 })
             (load_const,   ldc,        { dst: i16, index: u32 })
+            (load_proc,    ldp,        { dst: i16, index: u32 })
             // Jumps
             (call,         call,       { index: u32 })
             (call_dynamic, call_dyn,   { src: i16 })
@@ -23,12 +24,12 @@ macro_rules! opcodes {
             (branch_gez,   bgez,       { src: i16, offset: i32 })
             (r#return,     ret,        {})
             // Arithmetic
-            // i64
-            (add_i64,      addi,       { dst: i16, left: i16, right: i16 })
-            (sub_i64,      subi,       { dst: i16, left: i16, right: i16 })
-            (mul_i64,      muli,       { dst: i16, left: i16, right: i16 })
-            (div_i64,      divi,       { dst: i16, left: i16, right: i16 })
-            (rem_i64,      remi,       { dst: i16, left: i16, right: i16 })
+            // s64
+            (add_s64,      adds,       { dst: i16, left: i16, right: i16 })
+            (sub_s64,      subs,       { dst: i16, left: i16, right: i16 })
+            (mul_s64,      muls,       { dst: i16, left: i16, right: i16 })
+            (div_s64,      divs,       { dst: i16, left: i16, right: i16 })
+            (rem_s64,      rems,       { dst: i16, left: i16, right: i16 })
             // f64
             (add_f64,      addf,       { dst: i16, left: i16, right: i16 })
             (sub_f64,      subf,       { dst: i16, left: i16, right: i16 })
@@ -36,7 +37,7 @@ macro_rules! opcodes {
             (div_f64,      divf,       { dst: i16, left: i16, right: i16 })
             (rem_f64,      remf,       { dst: i16, left: i16, right: i16 })
             // Debug
-            (print_i64,    print_i64,  { src: i16 })
+            (print_s64,    print_s64,  { src: i16 })
             (print_f64,    print_f64,  { src: i16 })
             (print_proc,   print_proc, { src: i16 })
             // Special
@@ -95,6 +96,7 @@ macro_rules! create_constants {
 macro_rules! create_asm {
     ($( ($name: ident, $asm_name: ident, { $($arg_name: ident: $arg_type: ty),* }) )*) => {
         pub mod _asm {
+            pub fn todo<A, T>(_: A) -> T { todo!(); }
             create_asm!(#paste $(($name, $asm_name, {$($arg_name: $arg_type),*}))*);
         }
     };
