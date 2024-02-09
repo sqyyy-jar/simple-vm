@@ -108,10 +108,13 @@ impl Runtime {
         }
     }
 
-    pub fn evaluate(&mut self) {
+    pub fn fetch(&mut self) -> u8 {
+        self.read::<u8>()
+    }
+
+    pub fn execute(&mut self, opcode: u8) {
         unsafe {
-            let opc = self.read::<u8>();
-            match opc {
+            match opcode {
                 ALLOC => {
                     let insn = Alloc::read(self);
                     self.stack.alloc(insn.size as usize);
@@ -264,14 +267,22 @@ impl Runtime {
                 HALT => {
                     self.pc = null();
                 }
-                _ => unimplemented!("opcode::0x{opc:02x}"),
+                _ => unimplemented!("opcode [0x{opcode:02x}]"),
             }
         }
     }
 
     pub fn run(&mut self) {
         while !self.pc.is_null() {
-            self.evaluate();
+            let opcode = self.fetch();
+            self.execute(opcode);
+        }
+    }
+
+    pub fn run_debug(&mut self) {
+        while !self.pc.is_null() {
+            let opcode = self.fetch();
+            self.execute(opcode);
         }
     }
 }
