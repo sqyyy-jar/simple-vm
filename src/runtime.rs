@@ -1,3 +1,7 @@
+pub mod debug;
+pub mod proc;
+pub mod stack;
+
 use std::{mem::size_of, ptr::null};
 
 use crate::{
@@ -6,15 +10,15 @@ use crate::{
         Call, CallDynamic, DivF64, DivS64, Instruction, LoadConst, LoadProc, Move, MoveValue,
         MulF64, MulS64, PrintF64, PrintProc, PrintS64, RemF64, RemS64, SubF64, SubS64, ADD_F64,
         ADD_S64, ALLOC, BRANCH, BRANCH_GEZ, BRANCH_GZ, BRANCH_LEZ, BRANCH_LZ, BRANCH_NZ, BRANCH_Z,
-        CALL, CALL_DYNAMIC, DIV_F64, DIV_S64, HALT, LOAD_CONST, LOAD_PROC, MOVE, MOVE_VALUE,
-        MUL_F64, MUL_S64, PRINT_F64, PRINT_PROC, PRINT_S64, REM_F64, REM_S64, RETURN, SUB_F64,
-        SUB_S64,
+        BREAKPOINT, CALL, CALL_DYNAMIC, DIV_F64, DIV_S64, HALT, LOAD_CONST, LOAD_PROC, MOVE,
+        MOVE_VALUE, MUL_F64, MUL_S64, PRINT_F64, PRINT_PROC, PRINT_S64, REM_F64, REM_S64, RETURN,
+        SUB_F64, SUB_S64,
     },
-    proc::Proc,
-    stack::Stack,
     util::Read,
     value,
 };
+
+use self::{proc::Proc, stack::Stack};
 
 #[macro_export]
 macro_rules! make_runtime {
@@ -22,7 +26,7 @@ macro_rules! make_runtime {
         .constants = [ $($constant: expr),* ];
         .procs = [ $( .{ $($insn: expr;)* } ),* ];
     ) => {{
-        let mut runtime = $crate::rt::Runtime::new();
+        let mut runtime = $crate::runtime::Runtime::new();
         $(
             runtime.push_constant(std::convert::Into::into($constant));
         )*
@@ -33,7 +37,7 @@ macro_rules! make_runtime {
             $(
                 $crate::opcodes::Instruction::write(&$insn, &mut code);
             )*
-            runtime.push_proc(::std::convert::Into::into($crate::proc::Proc::new(code)));
+            runtime.push_proc(::std::convert::Into::into($crate::runtime::proc::Proc::new(code)));
         })*
         runtime
     }};
@@ -267,6 +271,7 @@ impl Runtime {
                 HALT => {
                     self.pc = null();
                 }
+                BREAKPOINT => (),
                 _ => unimplemented!("opcode [0x{opcode:02x}]"),
             }
         }

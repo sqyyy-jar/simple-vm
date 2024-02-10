@@ -4,4 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+eframe = "0.26.0"
+egui_extras = { version = "0.26.0", features = ["default", "image"] }
 paste = "1.0.14"

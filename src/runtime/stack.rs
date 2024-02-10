@@ -22,9 +22,9 @@ use crate::value::Value;
 #[repr(C)]
 pub struct Stack {
     /// Stack top
-    sp: *mut Value,
+    pub(super) sp: *mut Value,
     /// Call frame
-    fp: *mut Value,
+    pub(super) fp: *mut Value,
     owner: Box<[MaybeUninit<Value>]>,
 }
 

@@ -1,4 +1,4 @@
-use crate::proc::Proc;
+use crate::runtime::proc::Proc;
 
 #[macro_export]
 macro_rules! value {

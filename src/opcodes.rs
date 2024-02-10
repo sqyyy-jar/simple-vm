@@ -42,6 +42,7 @@ macro_rules! opcodes {
             (print_proc,   print_proc, { src: i16 })
             // Special
             (halt,         hlt,        {})
+            (breakpoint,   brkp,       {})
         }
     };
 }
