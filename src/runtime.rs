@@ -72,9 +72,9 @@ impl Runtime {
 
     pub fn call(&mut self, index: u32) {
         let Some(proc) = self.procs.get(index as usize) else {
-            panic!("Unable to call constants #{index}");
+            panic!("Unable to call proc #{index}");
         };
-        self.push_call_frame(&**proc);
+        unsafe { self.push_call_frame(&**proc) };
     }
 
     pub fn load_const(&mut self, dst: i16, index: u32) {
@@ -98,7 +98,7 @@ impl Runtime {
     }
 
     /// Pushes a call frame and sets the instruction pointer
-    pub fn push_call_frame(&mut self, proc: *const Proc) {
+    pub unsafe fn push_call_frame(&mut self, proc: *const Proc) {
         unsafe {
             self.stack.push_frame(self.pc);
             self.pc = (*proc).code.as_ptr();

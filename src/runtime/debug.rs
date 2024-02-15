@@ -66,7 +66,7 @@ impl Debugger {
             CALL_DYNAMIC => {
                 let insn = CallDynamic::read(&mut self.runtime);
                 let proc = unsafe { self.runtime.stack.load(insn.src).proc };
-                self.runtime.push_call_frame(proc);
+                unsafe { self.runtime.push_call_frame(proc) };
                 // Track callframe
                 self.callstack
                     .push(CallFrameInfo::new(proc, self.runtime.stack.fp));

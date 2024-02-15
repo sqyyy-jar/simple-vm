@@ -90,6 +90,7 @@ impl Stack {
     pub fn return_call(&mut self) -> *const u8 {
         unsafe {
             let fp = self.fp as *mut StackFrame;
+            self.sp = self.fp.add(2);
             self.fp = (*fp).fp;
             (*fp).ra
         }

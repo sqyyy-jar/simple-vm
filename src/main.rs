@@ -4,7 +4,6 @@
 use runtime::debug::Debugger;
 
 pub mod opcodes;
-pub mod proc;
 pub mod runtime;
 pub mod util;
 pub mod value;
@@ -55,7 +54,6 @@ fn main() {
             }
         ];
     };
-    let mut debugger = Debugger::new(rt, 0);
-    debugger.add_breakpoint(0, 1 + 2);
+    let debugger = Debugger::new(rt, 0);
     debugger.start_app();
 }
