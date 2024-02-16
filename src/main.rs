@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![feature(new_uninit)]
 
-use runtime::debug::Debugger;
+use runtime::debug::{app::DebugApp, Debugger};
 
 pub mod opcodes;
 pub mod runtime;
@@ -14,7 +14,7 @@ fn main() {
         .procs = [
             .{ // [0]: main()
                 alloc(1);
-                movv(0, 4);
+                movv(0, 19);
                 call(2);
                 print_s64(0);
                 hlt();
@@ -40,20 +40,14 @@ fn main() {
                 subs(1, -1, 0);                         // a = n - one
                 mov(3, 1);                              // c = a
                 call(2);                                // c = fibonacci(c)
-                print_s64(3);
-                brkp();
                 mov(2, 3);                              // b = c
                 subs(3, 1, 0);                          // c = a - one
                 call(2);                                // c = fibonacci(c)
-                print_s64(3);
-                brkp();
                 adds(-1, 2, 3);                         // return b + c
-                print_s64(-1);
-                brkp();
                 ret();
             }
         ];
     };
     let debugger = Debugger::new(rt, 0);
-    debugger.start_app();
+    DebugApp::run(debugger);
 }

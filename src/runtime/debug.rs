@@ -1,9 +1,9 @@
+pub mod app;
+
 use std::{
     collections::HashMap,
     time::{Duration, Instant},
 };
-
-use eframe::egui;
 
 use crate::{
     opcodes::{
@@ -137,84 +137,6 @@ impl Debugger {
                 return None;
             }
         }
-    }
-
-    pub fn start_app(self) {
-        let options = eframe::NativeOptions {
-            viewport: egui::ViewportBuilder::default().with_inner_size([500.0, 375.0]),
-            ..Default::default()
-        };
-        eframe::run_native(
-            "Debugger",
-            options,
-            Box::new(|cc| {
-                egui_extras::install_image_loaders(&cc.egui_ctx);
-
-                Box::new(self)
-            }),
-        )
-        .unwrap();
-    }
-}
-
-impl eframe::App for Debugger {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if !self.finished && !self.paused {
-            self.resume_with_timeout(true, Duration::from_millis(10));
-        }
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Debugger");
-            ui.horizontal(|ui| {
-                let pause_btn = if self.paused {
-                    egui::Button::image_and_text(
-                        egui::Image::new(egui::include_image!("../../assets/icons/resume.png")),
-                        "Resume",
-                    )
-                } else {
-                    egui::Button::image_and_text(
-                        egui::Image::new(egui::include_image!("../../assets/icons/pause.png")),
-                        "Pause",
-                    )
-                };
-                if ui.add(pause_btn).clicked() {
-                    self.paused = !self.paused;
-                }
-                if ui
-                    .add(egui::Button::image_and_text(
-                        egui::Image::new(egui::include_image!("../../assets/icons/step.png")),
-                        "Step",
-                    ))
-                    .clicked()
-                    && !self.finished
-                    && self.paused
-                {
-                    self.step();
-                }
-            });
-            let mut debug_info = format!("pc: {:?}", self.runtime.pc,);
-            for i in 0..self.callstack.len() {
-                let (proc, fp, frame_size) = {
-                    let info = &self.callstack[i];
-                    (info.proc, info.fp, info.size)
-                };
-                debug_info.push_str(&format!(
-                    "
-frame[{i}]:
-  proc: {proc:?}
-  fp: {fp:?}
-  size: {frame_size}"
-                ));
-                for offset in 0..frame_size {
-                    unsafe {
-                        let value = *fp.sub(1 + offset);
-                        let proc = value.proc;
-                        let s64 = value.s64;
-                        debug_info.push_str(&format!("\n  [{offset}]: {proc:012?} ~ {s64}"));
-                    }
-                }
-            }
-            ui.code_editor(&mut debug_info);
-        });
     }
 }
 
